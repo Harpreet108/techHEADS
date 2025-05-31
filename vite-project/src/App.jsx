@@ -48,5 +48,11 @@ const App = () => {
     </div>
   );
 };
+<<<<<<< HEAD
 
 export default App;
+=======
+
+export default App;
+
+>>>>>>> ef9cbb2326f882e0c2299e96bc0417caf33f7aa3
