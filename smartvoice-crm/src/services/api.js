@@ -1,7 +1,8 @@
 // src/services/api.js
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';
+// The proxy in vite.config.js will handle prepending http://localhost:5000
+const API_URL = '/api';
 
 export const getRecentCalls = async () => {
   const response = await axios.get(`${API_URL}/calls/recent`);
@@ -13,6 +14,7 @@ export const getAgentStats = async () => {
   return response.data;
 };
 
+// ... (rest of the functions remain similar)
 export const getSettings = async () => {
   const response = await axios.get(`${API_URL}/settings`);
   return response.data;
