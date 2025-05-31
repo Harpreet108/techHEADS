@@ -1,0 +1,145 @@
+// Vite-based React app with SmartVoice CRM dashboard integration
+import React, { useEffect, useState } from 'react';
+import io from 'socket.io-client';
+import axios from 'axios';
+
+const socket = io('http://localhost:5000');
+
+const SmartVoiceCRMApp = () => {
+  const [calls, setCalls] = useState([]);
+  const [transcript, setTranscript] = useState("");
+  const [coachingAlerts, setCoachingAlerts] = useState([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [currentCallId, setCurrentCallId] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+
+  const startCall = async () => {
+    const res = await axios.post('/api/calls/start', {
+      customerId: 'demo_customer',
+      customerInfo: {
+        name: 'Demo Customer',
+        phone: '+1-555-DEMO',
+        email: 'demo@example.com',
+        company: 'DemoCorp'
+      }
+    });
+    const call = res.data.call;
+    setCurrentCallId(call._id);
+    setTranscript("");
+    setCoachingAlerts([]);
+    setIsRecording(true);
+    socket.emit('join-call', call.callId);
+  };
+
+  const endCall = async () => {
+    await axios.post(`/api/calls/${currentCallId}/end`);
+    setIsRecording(false);
+    setCurrentCallId(null);
+    socket.emit('leave-call', currentCallId);
+    fetchCalls();
+    fetchAnalytics();
+  };
+
+  const fetchCalls = async () => {
+    const res = await axios.get('/api/calls');
+    setCalls(res.data.calls);
+  };
+
+  const fetchAnalytics = async () => {
+    const res = await axios.get('/api/analytics/dashboard');
+    setAnalytics(res.data);
+  };
+
+  useEffect(() => {
+    fetchCalls();
+    fetchAnalytics();
+    socket.on('transcript', (data) => {
+      setTranscript(prev => prev + `\n${data.speaker}: ${data.text}`);
+    });
+    socket.on('coaching', (data) => {
+      setCoachingAlerts(prev => [...data.alerts, ...prev.slice(0, 2)]);
+    });
+    return () => {
+      socket.off('transcript');
+      socket.off('coaching');
+    };
+  }, []);
+
+  return (
+    <div className="p-6 font-sans">
+      <h1 className="text-3xl font-bold mb-4 text-indigo-600">SmartVoice CRM Dashboard</h1>
+
+      {analytics && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white shadow p-4 rounded">
+            <p className="text-sm text-gray-500">Total Calls</p>
+            <p className="text-2xl font-bold">{analytics.totalCalls}</p>
+          </div>
+          <div className="bg-white shadow p-4 rounded">
+            <p className="text-sm text-gray-500">Avg Duration</p>
+            <p className="text-2xl font-bold">{Math.round(analytics.avgDuration)}s</p>
+          </div>
+          <div className="bg-white shadow p-4 rounded">
+            <p className="text-sm text-gray-500">Call Score</p>
+            <p className="text-2xl font-bold">{analytics.avgCallScore}%</p>
+          </div>
+          <div className="bg-white shadow p-4 rounded">
+            <p className="text-sm text-gray-500">Action Items</p>
+            <p className="text-2xl font-bold">{analytics.totalActionItems}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="space-x-4 mb-6">
+        {!isRecording ? (
+          <button onClick={startCall} className="bg-green-500 text-white px-4 py-2 rounded">Start Call</button>
+        ) : (
+          <button onClick={endCall} className="bg-red-500 text-white px-4 py-2 rounded">End Call</button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Live Transcript</h2>
+          <pre className="bg-gray-100 p-4 rounded h-64 overflow-y-scroll whitespace-pre-wrap">{transcript}</pre>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Live Coaching Alerts</h2>
+          <ul className="bg-yellow-50 p-4 rounded h-64 overflow-y-scroll">
+            {coachingAlerts.map((alert, i) => (
+              <li key={i} className="mb-2">{alert.message}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold mb-2">Recent Calls</h2>
+        <table className="table-auto w-full bg-white shadow rounded">
+          <thead>
+            <tr className="bg-indigo-100">
+              <th className="text-left p-2">Customer</th>
+              <th className="text-left p-2">Status</th>
+              <th className="text-left p-2">Sentiment</th>
+              <th className="text-left p-2">Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            {calls.map(call => (
+              <tr key={call._id} className="border-t">
+                <td className="p-2">{call.customerInfo.name}</td>
+                <td className="p-2">{call.callData.status}</td>
+                <td className="p-2">{call.aiInsights?.sentiment?.overall || 'N/A'}</td>
+                <td className="p-2">{call.aiInsights?.summary || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default SmartVoiceCRMApp;
+

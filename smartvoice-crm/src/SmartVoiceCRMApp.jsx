@@ -9,20 +9,31 @@ export default function SmartVoiceCRMApp() {
   const [dashboard, setDashboard] = useState({ totalCalls: 0, avgDuration: 0, avgScore: 0, actionItems: 0 });
 
   useEffect(() => {
-    // Fetch dashboard data
     fetch('/api/analytics/dashboard')
       .then(res => res.json())
       .then(setDashboard);
 
-    // Fetch recent calls
     fetch('/api/calls/recent')
       .then(res => res.json())
       .then(setCalls);
 
-    // Listen for real-time updates
-    socket.on('transcript', data => setLiveTranscript(data.text));
+    socket.on('transcript', data => setLiveTranscript(prev => prev + ' ' + data.text));
     socket.on('coaching', alert => alert && alert('Coaching Tip: ' + alert.message));
   }, []);
+
+  // Upload audio file for transcription
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('audio', file);
+    const response = await fetch('/api/transcribe/audio', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json();
+    setLiveTranscript(data.transcript || 'Transcription failed');
+  };
 
   return (
     <div style={{ padding: 20 }}>
@@ -38,8 +49,11 @@ export default function SmartVoiceCRMApp() {
       <button onClick={() => socket.emit('startCall')}>Start Call</button>
       <button onClick={() => socket.emit('endCall')}>End Call</button>
 
+      <h2>🎙️ Upload Audio for Transcription</h2>
+      <input type="file" accept="audio/*" onChange={handleFileUpload} />
+
       <h2>📜 Live Transcript</h2>
-      <div style={{ background: '#fff', padding: 10, borderRadius: 4, minHeight: 100 }}>
+      <div style={{ background: '#fff', padding: 10, borderRadius: 4, minHeight: 100, whiteSpace: 'pre-wrap' }}>
         {liveTranscript}
       </div>
 
